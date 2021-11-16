@@ -130,61 +130,6 @@
         usermod -aG docker essic
         rm get-docker.sh
       when: is_docker_installed.rc != 0
-
-    - name: check if Java is installed!
-      shell: command -v java > /dev/null 2>&1
-      register: is_java_installed
-      ignore_errors: yes
- 
-    - name: set up OpenJdk 11 (Ubuntu 21.04 or less)
-      become: yes
-      shell: |
-        wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | apt-key add -
-        add-apt-repository --yes https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/
-        apt-get update
-        apt-get install -y adoptopenjdk-11-hotspot
-        java -version
-      when: 
-        - is_java_installed.rc != 0
-        - ansible_distribution_version | float <= 21.04
-
-    - name: set up OpenJDK 11 (Ubuntu > 21.04)
-      become: yes
-      apt:
-        name:
-          - openjdk-11-jdk
-        update-cache: yes
-      when:
-        - is_java_installed.rc != 0
-        - ansible_distribution_version | float > 21.04
-
-    - name: check if lein / clojure is installed!
-      shell: command -v lein > /dev/null 2>&1
-      register: is_lein_installed
-      ignore_errors: yes
-      
-    - name: set up lein / clojure
-      shell: |
-        cd ~
-        curl https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein > lein
-        chmod a+x lein 
-        mv lein .local/bin
-      when: is_lein_installed.rc != 0
-      
-    - name: check if rust is installed!
-      shell: command -v rustup > /dev/null 2>&1
-      register: is_rust_installed
-      ignore_errors: yes
-
-    - name: download, install and configure Rust
-      shell: |
-        curl https://sh.rustup.rs -sSf | sh -s -- -y
-        ~/.cargo/bin/rustup toolchain install nightly
-        ~/.cargo/bin/rustup default nightly
-      args:
-        warn: false
-      when: is_rust_installed.rc != 0
-
     - name: check if az-cli exists!
       shell: command -v az > /dev/null 2>&1
       register: is_az_exist
@@ -234,36 +179,92 @@
           shell: cd ~/.local && unzip packer.zip && chmod +x packer && mv packer bin/ && rm ~/.local/packer.zip
 
       when: not packer.stat.exists
+    - name: check if Java is installed!
+      shell: command -v java > /dev/null 2>&1
+      register: is_java_installed
+      ignore_errors: yes
+ 
+    - name: set up OpenJdk 11 (Ubuntu 21.04 or less)
+      become: yes
+      shell: |
+        wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | apt-key add -
+        add-apt-repository --yes https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/
+        apt-get update
+        apt-get install -y adoptopenjdk-11-hotspot
+        java -version
+      when: 
+        - is_java_installed.rc != 0
+        - ansible_distribution_version | float <= 21.04
+
+    - name: set up OpenJDK 11 (Ubuntu > 21.04)
+      become: yes
+      apt:
+        name:
+          - openjdk-11-jdk
+        update-cache: yes
+      when:
+        - is_java_installed.rc != 0
+        - ansible_distribution_version | float > 21.04
+
+    - name: (Clojure setup) Check if Leiningen is installed
+      stat:
+        path: ~/.local/bin/lein
+      register: lein
+
+    - name: (Clojure setup) Install Leiningen
+      shell: |
+        curl https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein > lein
+        chmod a+x lein
+        mv lein ~/.local/bin
+        ~/.local/bin/lein version
+      when: not lein.stat.exists
+
+    - name: (Clojure setup) Check if joker is installed
+      stat:
+        path: ~/.local/bin/joker
+      register: joker
+
+    - name: (Clojure setup) Install joker
+      shell: |
+        wget -O joker.zip https://github.com/candid82/joker/releases/download/v0.17.3/joker-0.17.3-linux-amd64.zip
+        unzip joker.zip
+        mv joker ~/.local/bin
+        rm joker.zip
+        ~/.local/bin/joker --version
+      when: not joker.stat.exists
+
+    - name: (Clojure setup) Check if clj-kondo is installed
+      stat:
+        path: ~/.local/bin/clj-kondo
+      register: cljkondo
+
+    - name: (Clojure setup) Install clj-kondo
+      shell: |
+        curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo
+        chmod +x install-clj-kondo
+        ./install-clj-kondo --dir ~/.local/bin
+        rm install-clj-kondo
+        clj-kondo --version
+      when: not cljkondo.stat.exists
+      
+    - name: check if rust is installed!
+      shell: command -v rustup > /dev/null 2>&1
+      register: is_rust_installed
+      ignore_errors: yes
+
+    - name: download, install and configure Rust
+      shell: |
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        ~/.cargo/bin/rustup toolchain install nightly
+        ~/.cargo/bin/rustup default nightly
+      args:
+        warn: false
+      when: is_rust_installed.rc != 0
 
     - name: Remove dependencies that are no longer required
       become: yes
       apt:
         autoremove: yes
-
-    - name: Install snap
-      become: yes
-      apt:
-        name: snapd
-        state: present
-
-    - name: Install emacs, pwsh, vscode, dotnet-sdk
-      become: yes
-      community.general.snap:
-        name:
-          - emacs
-          - powershell
-          - dotnet-sdk
-          - code
-        classic: yes
-        state: present
-
-    - name: Install postman
-      become: yes
-      community.general.snap:
-        name:
-          - postman
-        classic: no
-        state: present
 
     - name: Check if OhMyZsh folder already exists!
       stat:
@@ -286,31 +287,10 @@
             state: absent
       when: not ohmyzsh.stat.exists
 
-    - name: check if ghcup folder already exists!
+    - name: check if ghcup is present!
       stat:
         path: ~/.ghcup
       register: ghcup
-
-    - name: check if nvm folder already exists!
-      stat:
-        path: ~/.nvm
-      register: nvm
-
-    - name: install nvm & node tools
-      shell: |
-        curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-        echo 'export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"' >> ~/.zshrc
-        echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.zshrc
-        export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        nvm install --lts
-        nvm use default
-        npm install -g vmd
-        npm install -g bash-language-server
-        npm install -g yarn
-      args:
-        warn: false
-      when: not nvm.stat.exists
 
     - block:
         - name: install ghcup requirement
@@ -365,63 +345,51 @@
 
       when: not ghcup.stat.exists
 
-    - name: Check if java is installed
-      command: java -version
-      register: java_result
-      ignore_errors: True
-    
-    - name: Install Java
+    - name: check if nvm folder already exists!
+      stat:
+        path: ~/.nvm
+      register: nvm
+
+    - name: install nvm & node tools
+      shell: |
+        curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+        echo 'export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"' >> ~/.zshrc
+        echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.zshrc
+        export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm install --lts
+        nvm use default
+        npm install -g vmd
+        npm install -g bash-language-server
+        npm install -g yarn
+      args:
+        warn: false
+      when: not nvm.stat.exists
+
+    - name: Install snap
       become: yes
-      shell: |
-        apt-get install -y software-properties-common
-        wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | sudo apt-key add -
-        sudo add-apt-repository --yes https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/
-        sudo apt-get update
-        sudo apt-get install -y adoptopenjdk-11-hotspot
-      when: java_result is failed
+      apt:
+        name: snapd
+        state: present
 
+    - name: Install emacs, pwsh, vscode, dotnet-sdk
+      become: yes
+      community.general.snap:
+        name:
+          - emacs
+          - powershell
+          - dotnet-sdk
+          - code
+        classic: yes
+        state: present
 
-    - name: (Clojure setup) Check if Leiningen is installed
-      stat:
-        path: ~/.local/bin/lein
-      register: lein
-
-    - name: (Clojure setup) Install Leiningen
-      shell: |
-        curl https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein > lein
-        chmod a+x lein
-        mv lein ~/.local/bin
-        ~/.local/bin/lein version
-      when: not lein.stat.exists
-
-
-    - name: (Clojure setup) Check if joker is installed
-      stat:
-        path: ~/.local/bin/joker
-      register: joker
-
-    - name: (Clojure setup) Check if clj-kondo is installed
-      stat:
-        path: ~/.local/bin/clj-kondo
-      register: cljkondo
-
-    - name: (Clojure setup) Install joker
-      shell: |
-        wget -O joker.zip https://github.com/candid82/joker/releases/download/v0.17.3/joker-0.17.3-linux-amd64.zip
-        unzip joker.zip
-        mv joker ~/.local/bin
-        rm joker.zip
-        ~/.local/bin/joker --version
-      when: not joker.stat.exists
-
-    - name: (Clojure setup) Install clj-kondo
-      shell: |
-        curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo
-        chmod +x install-clj-kondo
-        ./install-clj-kondo --dir ~/.local/bin
-        rm install-clj-kondo
-        clj-kondo --version
-      when: not cljkondo.stat.exists
+    - name: Install postman
+      become: yes
+      community.general.snap:
+        name:
+          - postman
+        classic: no
+        state: present
 
     - name: Check if Spacemacs config file exists!
       stat:
