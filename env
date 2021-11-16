@@ -1,0 +1,22 @@
+#!/bin/sh
+# snapd shell setup
+# affix colons on either side of $PATH to simplify matching
+case ":${PATH}:" in
+    *:"/snap/bin":*)
+        ;;
+    *)
+        # Prepending path in case a system-installed rustc needs to be overridden
+        export PATH="/snap/bin:$PATH"
+        ;;
+esac
+
+# snapd shell setup
+# affix colons on either side of $PATH to simplify matching
+case ":${PATH}:" in
+    *:"$HOME/.ghcup/bin":*)
+        ;;
+    *)
+        # Prepending path in case a system-installed rustc needs to be overridden
+        export PATH="$HOME/.ghcup/bin:$PATH"
+        ;;
+esac

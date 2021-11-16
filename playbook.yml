@@ -1,0 +1,568 @@
+---
+- name: My personal setup v2
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    extra_path: "${HOME}/.local/bin:/snap/bin:${HOME}/.ghcup/bin"
+
+  vars_prompt:
+    - name: git_user_name
+      prompt: What git user name you want ?
+      default: essic
+      private: no
+
+    - name: git_user_email
+      prompt: What git user email you want ?
+      default: lollancf37@gmail.com
+      private: no
+
+  tasks:
+    - name: Ubuntu version !
+      debug: msg="{{ansible_distribution_version}}"
+
+    - name: Creates directory
+      become: yes
+      become_user: essic
+      file:
+        path: ~/.local/bin
+        state: directory
+        mode: u=rwx,g=xr,o=x
+
+    - name: Install required packages
+      become: yes
+      apt:
+        name:
+          - trash-cli
+          - git
+          - curl
+          - wget
+          - zsh
+          - xsel
+          - clipit
+          - python3-bashate
+          - shellcheck
+          - unzip
+          - apt-file
+        update_cache: yes
+
+    - name: set git user email
+      community.general.git_config:
+        name: user.email
+        scope: global
+        value: "{{ git_user_email }}"
+
+    - name: set git user name
+      community.general.git_config:
+        name: user.name
+        scope: global
+        value: "{{ git_user_name }}"
+
+    - name: set up git alias pro
+      community.general.git_config:
+        name: alias.pro
+        scope: global
+        value: pull --rebase origin
+
+    - name: set up git alias prom
+      community.general.git_config:
+        name: alias.prom
+        scope: global
+        value: pull --rebase origin master
+
+    - name: set up git alias psho
+      community.general.git_config:
+        name: alias.psho
+        scope: global
+        value: push origin
+
+    - name: set up git alias pshom
+      community.general.git_config:
+        name: alias.pshom
+        scope: global
+        value: push origin master
+
+    - name: set up git alias ci
+      community.general.git_config:
+        name: alias.ci
+        scope: global
+        value: commit -m
+
+    - name: set up git alias cia
+      community.general.git_config:
+        name: alias.cia
+        scope: global
+        value: commit --amend
+
+    - name: set up git alias st
+      community.general.git_config:
+        name: alias.st
+        scope: global
+        value: status
+
+    - name: set up git alias co
+      community.general.git_config:
+        name: alias.co
+        scope: global
+        value: checkout
+
+    - name: set up git alias cob
+      community.general.git_config:
+        name: alias.cob
+        scope: global
+        value: checkout -b
+
+    - name: set git log alias
+      community.general.git_config:
+        name: alias.lgb
+        scope: global
+        value: log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset%n' --abbrev-commit --date=relative --branches
+
+    - name: check if docker is installed!
+      shell: command -v docker > /dev/null 2>&1
+      register: is_docker_installed
+      ignore_errors: yes
+    
+    - name: install docker !
+      become: yes
+      shell: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sh get-docker.sh
+        usermod -aG docker essic
+        rm get-docker.sh
+      when: is_docker_installed.rc != 0
+
+    - name: check if Java is installed!
+      shell: command -v java > /dev/null 2>&1
+      register: is_java_installed
+      ignore_errors: yes
+ 
+    - name: set up OpenJdk 11 (Ubuntu 21.04 or less)
+      become: yes
+      shell: |
+        wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | apt-key add -
+        add-apt-repository --yes https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/
+        apt-get update
+        apt-get install -y adoptopenjdk-11-hotspot
+        java -version
+      when: 
+        - is_java_installed.rc != 0
+        - ansible_distribution_version | float <= 21.04
+
+    - name: set up OpenJDK 11 (Ubuntu > 21.04)
+      become: yes
+      apt:
+        name:
+          - openjdk-11-jdk
+        update-cache: yes
+      when:
+        - is_java_installed.rc != 0
+        - ansible_distribution_version | float > 21.04
+
+    - name: check if lein / clojure is installed!
+      shell: command -v lein > /dev/null 2>&1
+      register: is_lein_installed
+      ignore_errors: yes
+      
+    - name: set up lein / clojure
+      shell: |
+        cd ~
+        curl https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein > lein
+        chmod a+x lein 
+        mv lein .local/bin
+      when: is_lein_installed.rc != 0
+      
+    - name: check if rust is installed!
+      shell: command -v rustup > /dev/null 2>&1
+      register: is_rust_installed
+      ignore_errors: yes
+
+    - name: download, install and configure Rust
+      shell: |
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        ~/.cargo/bin/rustup toolchain install nightly
+        ~/.cargo/bin/rustup default nightly
+      args:
+        warn: false
+      when: is_rust_installed.rc != 0
+
+    - name: check if az-cli exists!
+      shell: command -v az > /dev/null 2>&1
+      register: is_az_exist
+      ignore_errors: yes
+
+    - name: install az-cli
+      become: yes
+      shell: |
+        curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+      args:
+        warn: false
+      when: is_az_exist.rc != 0
+
+    - name: check if terraform is installed
+      stat:
+        path: ~/.local/bin/terraform
+      register: tf
+
+    - block:
+        - name: download terraform 1.0.11
+          get_url:
+            url: https://releases.hashicorp.com/terraform/1.0.11/terraform_1.0.11_linux_amd64.zip
+            dest: ~/.local/terraform.zip
+
+        - name: install terraform
+          shell: |
+            cd ~/.local
+            unzip terraform.zip
+            chmod +x terraform
+            mv terraform bin/
+            rm ~/.local/terraform.zip
+
+      when: not tf.stat.exists
+
+    - name: check if packer is installed
+      stat:
+        path: ~/.local/bin/packer
+      register: packer
+
+    - block:
+        - name: download packer 1.7.2
+          get_url:
+            url: https://releases.hashicorp.com/packer/1.7.2/packer_1.7.2_linux_amd64.zip
+            dest: ~/.local/packer.zip
+
+        - name: install packer
+          shell: cd ~/.local && unzip packer.zip && chmod +x packer && mv packer bin/ && rm ~/.local/packer.zip
+
+      when: not packer.stat.exists
+
+    - name: Remove dependencies that are no longer required
+      become: yes
+      apt:
+        autoremove: yes
+
+    - name: Install snap
+      become: yes
+      apt:
+        name: snapd
+        state: present
+
+    - name: Install emacs, pwsh, vscode, dotnet-sdk
+      become: yes
+      community.general.snap:
+        name:
+          - emacs
+          - powershell
+          - dotnet-sdk
+          - code
+        classic: yes
+        state: present
+
+    - name: Install postman
+      become: yes
+      community.general.snap:
+        name:
+          - postman
+        classic: no
+        state: present
+
+    - name: Check if OhMyZsh folder already exists!
+      stat:
+        path: ~/.oh-my-zsh
+      register: ohmyzsh
+
+    - block:
+        - name: Download OhMyZsh install script
+          get_url:
+            url: https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+            dest: ~/install_ohmyzsh.sh
+            mode: +x
+
+        - name: Install OhMyZsh!
+          command: ~/install_ohmyzsh.sh --unattended
+
+        - name: Remove OhMyZsh install script
+          file:
+            path: ~/install_ohmyzsh.sh
+            state: absent
+      when: not ohmyzsh.stat.exists
+
+    - name: check if ghcup folder already exists!
+      stat:
+        path: ~/.ghcup
+      register: ghcup
+
+    - name: check if nvm folder already exists!
+      stat:
+        path: ~/.nvm
+      register: nvm
+
+    - name: install nvm & node tools
+      shell: |
+        curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+        echo 'export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"' >> ~/.zshrc
+        echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.zshrc
+        export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm install --lts
+        nvm use default
+        npm install -g vmd
+        npm install -g bash-language-server
+        npm install -g yarn
+      args:
+        warn: false
+      when: not nvm.stat.exists
+
+    - block:
+        - name: install ghcup requirement
+          become: yes
+          apt:
+            name:
+              - libffi-dev
+              - libgmp-dev
+              - libgmp10
+              - libncurses-dev
+              - libncurses5
+              - libtinfo5
+              - libgmp3-dev
+              - libtinfo-dev
+              - libghc-zlib-dev
+              - build-essential
+            state: present
+            update_cache: yes
+
+        - name: download ghcup install script
+          get_url:
+            url: https://get-ghcup.haskell.org
+            dest: ~/install_ghcup.sh
+            mode: +x
+
+        - name: install ghcup
+          shell: | 
+            export BOOTSTRAP_HASKELL_NONINTERACTIVE=0 
+            ~/install_ghcup.sh
+
+        - name: install ghc 9.0.1, cabal 3.6.0.2 and hls
+          shell: |
+            ~/.ghcup/bin/ghcup install ghc 9.0.1 
+            ~/.ghcup/bin/ghcup set ghc 9.0.1 
+            ~/.ghcup/bin/ghcup install cabal 3.6.0.2
+            ~/.ghcup/bin/ghcup set cabal 3.6.0.2
+            ~/.ghcup/bin/ghcup install hls
+
+        - name: Remove ghcup install script
+          file:
+            path: ~/install_ghcup.sh
+            state: absent
+
+        - name: download summoner 2.0.1.1
+          get_url:
+            url: https://github.com/kowainik/summoner/releases/download/v2.0.1.1/summon-cli-linux
+            dest: ~/.local/summon-cli-linux
+            mode: +x
+
+        - name: install summoner
+          command: mv ~/.local/summon-cli-linux ~/.local/bin/summon
+
+      when: not ghcup.stat.exists
+
+    - name: Check if java is installed
+      command: java -version
+      register: java_result
+      ignore_errors: True
+    
+    - name: Install Java
+      become: yes
+      shell: |
+        apt-get install -y software-properties-common
+        wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | sudo apt-key add -
+        sudo add-apt-repository --yes https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/
+        sudo apt-get update
+        sudo apt-get install -y adoptopenjdk-11-hotspot
+      when: java_result is failed
+
+
+    - name: (Clojure setup) Check if Leiningen is installed
+      stat:
+        path: ~/.local/bin/lein
+      register: lein
+
+    - name: (Clojure setup) Install Leiningen
+      shell: |
+        curl https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein > lein
+        chmod a+x lein
+        mv lein ~/.local/bin
+        ~/.local/bin/lein version
+      when: not lein.stat.exists
+
+
+    - name: (Clojure setup) Check if joker is installed
+      stat:
+        path: ~/.local/bin/joker
+      register: joker
+
+    - name: (Clojure setup) Check if clj-kondo is installed
+      stat:
+        path: ~/.local/bin/clj-kondo
+      register: cljkondo
+
+    - name: (Clojure setup) Install joker
+      shell: |
+        wget -O joker.zip https://github.com/candid82/joker/releases/download/v0.17.3/joker-0.17.3-linux-amd64.zip
+        unzip joker.zip
+        mv joker ~/.local/bin
+        rm joker.zip
+        ~/.local/bin/joker --version
+      when: not joker.stat.exists
+
+    - name: (Clojure setup) Install clj-kondo
+      shell: |
+        curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo
+        chmod +x install-clj-kondo
+        ./install-clj-kondo --dir ~/.local/bin
+        rm install-clj-kondo
+        clj-kondo --version
+      when: not cljkondo.stat.exists
+
+    - name: Check if Spacemacs config file exists!
+      stat:
+        path: ~/.spacemacs
+      register: smacs
+
+    - block:
+        - name: check if .emacs.d folder is present
+          stat:
+            path: ~/.emacs.d
+          register: emacsd
+
+        - name: backup .emacs.d folder
+          command: mv ~/.emacs.d ~/.emacs.d.bak
+          when: emacsd.stat.exists
+
+        - name: copy spacemacs config
+          copy:
+            src: ./spacemacs
+            dest: ~/.spacemacs
+            remote_src: no
+            mode: u=rw,g=r,o=r
+
+        - name: clone spacemacs
+          git:
+            repo: https://github.com/syl20bnr/spacemacs
+            dest: ~/.emacs.d
+            clone: yes
+            update: yes
+            version: develop
+
+        - name: run spacemacs once for initialization
+          command: /snap/bin/emacs --daemon=first-run
+
+        - name: kill running spacemacs instance
+          command: /snap/bin/emacsclient -e '(save-buffers-kill-emacs)' --socket-name first-run
+
+        - debug:
+            msg: "Install Spacemacs !"
+
+      when: not smacs.stat.exists
+
+    - name: copy paths config file
+      copy:
+        src: ./env
+        dest: ~/.local/env
+        remote_src: no
+        mode: u=rw,g=r,o=r
+
+    - name: add extra path
+      lineinfile:
+        path: ~/.profile
+        line: "source ~/.local/env"
+        regexp: "source ~/.local/env"
+        insertafter: EOF
+
+    - name: add DOTNET_ROOT env variable
+      lineinfile:
+        path: ~/.profile
+        line: "export DOTNET_ROOT=/snap/dotnet-sdk/current/"
+        regexp: "export DOTNET_ROOT=/snap/dotnet-sdk/current"
+        insertafter: EOF
+
+    - name: change oh-my-zsh theme
+      lineinfile:
+        path: ~/.zshrc
+        line: 'ZSH_THEME="strug"'
+        regexp: 'ZSH_THEME=*'
+
+    - name: add smacs alias
+      lineinfile:
+        path: ~/.zshrc
+        line: 'alias smacs="emacs -nw"'
+        regexp: 'alias smacs="emacs -nw"'
+        insertafter: EOF
+
+    - name: add demacs-start alias
+      lineinfile:
+        path: ~/.zshrc
+        line: 'alias demacs-start="emacs --daemon=spacemacs"'
+        regexp: 'alias demacs-start="emacs --daemon=spacemacs"'
+        insertafter: EOF
+
+    - name: add demacs-startw alias
+      lineinfile:
+        path: ~/.zshrc
+        line: 'alias demacs-startw="emacs --daemon"'
+        regexp: 'alias demacs-startw="emacs --daemon"'
+        insertafter: EOF
+
+    - name: add demacs alias
+      lineinfile:
+        path: ~/.zshrc
+        line: 'alias demacs="emacsclient -nc -s spacemacs"'
+        regexp: 'alias demacs="emacsclient -nc -s spacemacs"'
+        insertafter: EOF
+
+    - name: add demacs-w alias
+      lineinfile:
+        path: ~/.zshrc
+        line: 'alias demacs-w="emacsclient -nc -s"'
+        regexp: 'alias demacs-w="emacsclient -nc -s"'
+        insertafter: EOF
+
+    - name: add demacs-stop alias
+      lineinfile:
+        path: ~/.zshrc
+        line: 'alias demacs-stop="emacsclient -e \"(save-buffers-kill-emacs)\" --socket-name spacemacs"'
+        regexp: 'alias demacs-stop="emacsclient -e \"(save-buffers-kill-emacs)\" --socket-name spacemacs"'
+        insertafter: EOF
+    
+    - name: add demacs-stopw alias
+      lineinfile:
+        path: ~/.zshrc
+        line: 'alias demacs-stopw="emacsclient -e \"(save-buffers-kill-emacs)\" --socket-name"'
+        regexp: 'alias demacs-stopw="emacsclient -e \"(save-buffers-kill-emacs)\" --socket-name"'
+        insertafter: EOF
+
+    - name: load profile in zsh
+      lineinfile:
+          path: ~/.zshrc
+          line: 'source ~/.profile'
+          regexp: 'source ~/.profile'
+          insertafter: EOF
+
+    - name: add terraform alias
+      lineinfile:
+        path: ~/.zshrc
+        line: "alias tf=terraform"
+        regexp: "alias tf=terraform"
+        insertafter: EOF
+
+    - name: add postman alias
+      lineinfile:
+        path: ~/.zshrc
+        line: 'alias pm="postman </dev/null &>/dev/null &"'
+        regexp: 'alias pm="postman </dev/null &>/dev/null &"'
+        insertafter: EOF
+
+    - name: change shell to zsh
+      become: yes
+      user:
+        name: essic
+        shell: /bin/zsh
