@@ -379,7 +379,6 @@
           - emacs
           - nvim
           - powershell
-          - dotnet-sdk
           - code
         classic: yes
         state: present
