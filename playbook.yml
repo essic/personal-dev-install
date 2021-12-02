@@ -372,16 +372,28 @@
         name: snapd
         state: present
 
-    - name: Install emacs, pwsh, vscode, dotnet-sdk
+    - name: Install emacs, pwsh, vscode, nvim
       become: yes
       community.general.snap:
         name:
           - emacs
+          - nvim
           - powershell
           - dotnet-sdk
           - code
         classic: yes
         state: present
+    
+    - name: Insall dotnet-sdk 6
+      become: yes
+      shell: |
+        wget https://packages.microsoft.com/config/ubuntu/21.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+        sudo dpkg -i packages-microsoft-prod.deb
+        rm packages-microsoft-prod.deb
+        sudo apt-get update
+        sudo apt-get install -y apt-transport-https
+        sudo apt-get update 
+        sudo apt-get install -y dotnet-sdk-6.0
 
     - name: Install postman
       become: yes
