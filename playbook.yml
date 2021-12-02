@@ -457,13 +457,6 @@
         regexp: "source ~/.local/env"
         insertafter: EOF
 
-    - name: add DOTNET_ROOT env variable
-      lineinfile:
-        path: ~/.profile
-        line: "export DOTNET_ROOT=/snap/dotnet-sdk/current/"
-        regexp: "export DOTNET_ROOT=/snap/dotnet-sdk/current"
-        insertafter: EOF
-
     - name: change oh-my-zsh theme
       lineinfile:
         path: ~/.zshrc
