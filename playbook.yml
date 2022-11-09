@@ -32,6 +32,9 @@
       become: yes
       apt:
         name:
+          - dotnet6
+          - openjdk-18-jdk
+          - openjdk-18-jre
           - trash-cli
           - git
           - curl
@@ -43,6 +46,7 @@
           - shellcheck
           - unzip
           - apt-file
+        state: present
         update_cache: yes
 
     - name: set git user email
@@ -136,6 +140,7 @@
         usermod -aG docker essic
         rm get-docker.sh
       when: is_docker_installed.rc != 0
+
     - name: check if az-cli exists!
       shell: command -v az > /dev/null 2>&1
       register: is_az_exist
@@ -165,97 +170,25 @@
             sudo apt update && sudo apt install terraform
       when: not is_terraform_installed
 
-    - name: check if Java is installed!
-      shell: command -v java > /dev/null 2>&1
-      register: is_java_installed
-      ignore_errors: yes
- 
-    - name: set up OpenJdk 11 (Ubuntu 21.04 or less)
-      become: yes
-      shell: |
-        wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | apt-key add -
-        add-apt-repository --yes https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/
-        apt-get update
-        apt-get install -y adoptopenjdk-11-hotspot
-        java -version
-      when: 
-        - is_java_installed.rc != 0
-        - ansible_distribution_version | float <= 21.04
+   - name: check if rust is installed!
+     shell: command -v rustup > /dev/null 2>&1
+     register: is_rust_installed
+     ignore_errors: yes
 
-    - name: set up OpenJDK 11 (Ubuntu > 21.04)
-      become: yes
-      apt:
-        name:
-          - openjdk-11-jdk
-        update-cache: yes
-      when:
-        - is_java_installed.rc != 0
-        - ansible_distribution_version | float > 21.04
-
-    - name: (Clojure setup) Check if Leiningen is installed
-      stat:
-        path: ~/.local/bin/lein
-      register: lein
-
-    - name: (Clojure setup) Install Leiningen
-      shell: |
-        curl https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein > lein
-        chmod a+x lein
-        mv lein ~/.local/bin
-        ~/.local/bin/lein version
-      when: not lein.stat.exists
-
-    - name: (Clojure setup) Check if joker is installed
-      stat:
-        path: ~/.local/bin/joker
-      register: joker
-
-    - name: (Clojure setup) Install joker
-      shell: |
-        wget -O joker.zip https://github.com/candid82/joker/releases/download/v0.17.3/joker-0.17.3-linux-amd64.zip
-        unzip joker.zip
-        mv joker ~/.local/bin
-        rm joker.zip
-        ~/.local/bin/joker --version
-      when: not joker.stat.exists
-
-    - name: (Clojure setup) Check if clj-kondo is installed
-      stat:
-        path: ~/.local/bin/clj-kondo
-      register: cljkondo
-
-    - name: (Clojure setup) Install clj-kondo
-      shell: |
-        curl -sLO https://raw.githubusercontent.com/clj-kondo/clj-kondo/master/script/install-clj-kondo
-        chmod +x install-clj-kondo
-        ./install-clj-kondo --dir ~/.local/bin
-        rm install-clj-kondo
-        clj-kondo --version
-      when: not cljkondo.stat.exists
-      
-    - name: check if rust is installed!
-      shell: command -v rustup > /dev/null 2>&1
-      register: is_rust_installed
-      ignore_errors: yes
-
-    - name: download, install and configure Rust
-      shell: |
-        curl https://sh.rustup.rs -sSf | sh -s -- -y
-        ~/.cargo/bin/rustup toolchain install nightly
-        ~/.cargo/bin/rustup default nightly
-      args:
-        warn: false
-      when: is_rust_installed.rc != 0
-
-    - name: Remove dependencies that are no longer required
-      become: yes
-      apt:
-        autoremove: yes
+    - block:
+      - name: download, install and configure Rust
+        shell: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          ~/.cargo/bin/rustup toolchain install nightly
+          ~/.cargo/bin/rustup default nightly
+        args:
+          warn: false
+        when: is_rust_installed.rc != 0
 
     - name: Check if OhMyZsh folder already exists!
-      stat:
-        path: ~/.oh-my-zsh
-      register: ohmyzsh
+        stat:
+          path: ~/.oh-my-zsh
+        register: ohmyzsh
 
     - block:
         - name: Download OhMyZsh install script
@@ -274,12 +207,13 @@
       when: not ohmyzsh.stat.exists
 
     - name: check if ghcup is present!
-      stat:
-        path: ~/.ghcup
-      register: ghcup
+        stat:
+          path: ~/.ghcup
+        register: ghcup
+
 
     - block:
-        - name: install ghcup requirement
+         - name: install ghcup requirement
           become: yes
           apt:
             name:
@@ -307,13 +241,16 @@
             export BOOTSTRAP_HASKELL_NONINTERACTIVE=0 
             ~/install_ghcup.sh
 
-        - name: install ghc 9.0.1, cabal 3.6.0.2 and hls
+        - name: install ghc, cabal, stack and hls
           shell: |
-            ~/.ghcup/bin/ghcup install ghc 9.0.1 
-            ~/.ghcup/bin/ghcup set ghc 9.0.1 
-            ~/.ghcup/bin/ghcup install cabal 3.6.0.2
-            ~/.ghcup/bin/ghcup set cabal 3.6.0.2
+            ~/.ghcup/bin/ghcup install ghc
+            ~/.ghcup/bin/ghcup set ghc
+            ~/.ghcup/bin/ghcup install cabal
+            ~/.ghcup/bin/ghcup set cabal
             ~/.ghcup/bin/ghcup install hls
+            ~/.ghcup/bin/ghcup set hls
+            ~/.ghcup/bin/ghcup install stack
+            ~/.ghcup/bin/ghcup set stack
 
         - name: Remove ghcup install script
           file:
@@ -352,10 +289,23 @@
         warn: false
       when: not nvm.stat.exists
 
+    - name: Remove dependencies that are no longer required
+      become: yes
+      apt:
+        autoremove: yes
+
     - name: Install snap
       become: yes
       apt:
         name: snapd
+        state: present
+
+    - name: Install postman
+      become: yes
+      community.general.snap:
+        name:
+          - postman
+        classic: no
         state: present
 
     - name: Install emacs, pwsh, vscode, nvim
@@ -369,25 +319,6 @@
         classic: yes
         state: present
     
-    - name: Insall dotnet-sdk 6
-      become: yes
-      shell: |
-        wget https://packages.microsoft.com/config/ubuntu/21.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-        sudo dpkg -i packages-microsoft-prod.deb
-        rm packages-microsoft-prod.deb
-        sudo apt-get update
-        sudo apt-get install -y apt-transport-https
-        sudo apt-get update 
-        sudo apt-get install -y dotnet-sdk-6.0
-
-    - name: Install postman
-      become: yes
-      community.general.snap:
-        name:
-          - postman
-        classic: no
-        state: present
-
     - name: Check if Spacemacs config file exists!
       stat:
         path: ~/.spacemacs
