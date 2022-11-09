@@ -1,5 +1,5 @@
 ---
-- name: My personal setup v2
+- name: My personal setup v3
   hosts: localhost
   gather_facts: yes
   vars:
@@ -67,7 +67,7 @@
       community.general.git_config:
         name: alias.prom
         scope: global
-        value: pull --rebase origin master
+        value: pull --rebase origin main
 
     - name: set up git alias psho
       community.general.git_config:
@@ -79,7 +79,7 @@
       community.general.git_config:
         name: alias.pshom
         scope: global
-        value: push origin master
+        value: push origin main
 
     - name: set up git alias ci
       community.general.git_config:
@@ -93,8 +93,14 @@
         scope: global
         value: commit --amend
 
-    - name: set up git alias st
+    - name: set up git alias cian
       community.general.git_config:
+        name: alias.cia
+        scope: global
+        value: commit --amend --no-edit
+
+    - name: set up git alias st
+        community.general.git_config:
         name: alias.st
         scope: global
         value: status
@@ -144,41 +150,21 @@
       when: is_az_exist.rc != 0
 
     - name: check if terraform is installed
-      stat:
-        path: ~/.local/bin/terraform
-      register: tf
+      shell: command -v terraform > /dev/null 2>&1
+      register: is_terraform_installed
+      ignore_errors: yes
 
     - block:
-        - name: download terraform 1.0.11
-          get_url:
-            url: https://releases.hashicorp.com/terraform/1.0.11/terraform_1.0.11_linux_amd64.zip
-            dest: ~/.local/terraform.zip
-
-        - name: install terraform
+        - name: Install terraform | Configure package manager 
+          become: yes
           shell: |
-            cd ~/.local
-            unzip terraform.zip
-            chmod +x terraform
-            mv terraform bin/
-            rm ~/.local/terraform.zip
+            wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+        - name: Install terraform | Run apt get
+          shell: |
+            sudo apt update && sudo apt install terraform
+      when: not is_terraform_installed
 
-      when: not tf.stat.exists
-
-    - name: check if packer is installed
-      stat:
-        path: ~/.local/bin/packer
-      register: packer
-
-    - block:
-        - name: download packer 1.7.2
-          get_url:
-            url: https://releases.hashicorp.com/packer/1.7.2/packer_1.7.2_linux_amd64.zip
-            dest: ~/.local/packer.zip
-
-        - name: install packer
-          shell: cd ~/.local && unzip packer.zip && chmod +x packer && mv packer bin/ && rm ~/.local/packer.zip
-
-      when: not packer.stat.exists
     - name: check if Java is installed!
       shell: command -v java > /dev/null 2>&1
       register: is_java_installed
