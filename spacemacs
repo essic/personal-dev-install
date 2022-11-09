@@ -43,10 +43,6 @@ This function should only modify configuration layer settings."
      ;; -h---------------------------------------------------------------
      ;;fsharp2
      syntax-checking
-     (clojure :variables
-              clojure-backend 'cider
-              clojure-enable-linters '(clj-kondo joker)
-              clojure-enable-fancify-symbols t)
      auto-completion
      (elm :variables
           elm-format-command "elm-format-0.17")

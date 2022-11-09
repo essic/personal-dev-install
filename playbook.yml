@@ -35,6 +35,7 @@
           - dotnet6
           - openjdk-18-jdk
           - openjdk-18-jre
+          - elixir
           - trash-cli
           - git
           - curl
@@ -308,7 +309,7 @@
         classic: no
         state: present
 
-    - name: Install emacs, pwsh, vscode, nvim
+    - name: Install emacs, pwsh, vscode, nvim, intellij, rider
       become: yes
       community.general.snap:
         name:
@@ -316,6 +317,8 @@
           - nvim
           - powershell
           - code
+          - intellij-idea-ultimate
+          - rider
         classic: yes
         state: present
     
