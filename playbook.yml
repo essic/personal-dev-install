@@ -2,6 +2,13 @@
 - name: My personal setup v3
   hosts: localhost
   gather_facts: true
+  roles:
+    - role: diodonfrost.terraform
+      become: true
+      vars:
+        os_type: linux
+        base_arch: aarch64
+        terraform_version: latest
   vars:
     extra_path: "${HOME}/.local/bin:/snap/bin:${HOME}/.ghcup/bin"
 
@@ -27,12 +34,12 @@
         path: ~/.local/bin
         state: directory
         mode: u=rwx,g=xr,o=x
-
+     
     - name: Install required packages
       become: true
       ansible.builtin.apt:
         name:
-          - dotnet6
+          #- dotnet6
           - openjdk-18-jdk
           - openjdk-18-jre
           - elixir
@@ -155,25 +162,6 @@
       args:
         warn: false
       when: is_az_exist.rc != 0
-
-    - name: Check if terraform is installed
-      ansible.builtin.shell: command -v terraform > /dev/null 2>&1
-      changed_when: false
-      register: is_terraform_installed
-      ignore_errors: true
-
-    - name: Install terraform
-      block:
-      - name: Install terraform | Configure package manager
-        changed_when: false
-        become: true
-        ansible.builtin.shell: |
-          wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-      - name: Install terraform | Run apt get
-        ansible.builtin.shell: |
-          sudo apt update && sudo apt install terraform
-      when: not is_terraform_installed
 
     - name: Check if rust is installed!
       ansible.builtin.shell: command -v rustup > /dev/null 2>&1
@@ -328,7 +316,7 @@
           - powershell
           - code
           - intellij-idea-ultimate
-          - rider
+            #- rider
         classic: true
         state: present
  
