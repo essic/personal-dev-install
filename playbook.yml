@@ -343,15 +343,9 @@
             clone: true
             update: true
             version: develop
-
         - name: Run spacemacs once for initialization
           ansible.builtin.command: /snap/bin/emacs --daemon=first-run
           changed_when: false
-
-        - name: Kill running spacemacs instance
-          ansible.builtin.command: /snap/bin/emacsclient -e '(save-buffers-kill-emacs)' --socket-name first-run
-          changed_when: false
-
       when: not smacs.stat.exists
 
     - name: Copy paths config file
