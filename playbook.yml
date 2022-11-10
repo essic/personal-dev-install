@@ -10,9 +10,14 @@
         base_arch: aarch64
         terraform_version: latest
   vars:
-    extra_path: "${HOME}/.local/bin:/snap/bin:${HOME}/.ghcup/bin"
+    extra_path: "${HOME}/.local/bin:/snap/bin:${HOME}/.ghcup/bin:${HOME}/.cargo/bin"
 
   vars_prompt:
+    - name: user_login
+      prompt: What is your username ?
+      default: essic
+      private: false
+
     - name: git_user_name
       prompt: What git user name you want ?
       default: essic
@@ -29,7 +34,7 @@
 
     - name: Creates directory
       become: true
-      become_user: essic
+      become_user: '{{ user_login }}'
       ansible.builtin.file:
         path: ~/.local/bin
         state: directory
@@ -54,20 +59,20 @@
           - shellcheck
           - unzip
           - apt-file
-        state: present
+        state: latest
         update_cache: true
 
     - name: Set git user email
       community.general.git_config:
         name: user.email
         scope: global
-        value: "{{ git_user_email }}"
+        value: '{{ git_user_email }}'
 
     - name: Set git user name
       community.general.git_config:
         name: user.name
         scope: global
-        value: "{{ git_user_name }}"
+        value: '{{ git_user_name }}'
 
     - name: Set up git alias pro
       community.general.git_config:
@@ -136,8 +141,8 @@
         value: log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset%n' --abbrev-commit --date=relative --branches
 
     - name: Check if docker is installed!
-      ansible.builtin.shell: command -v docker > /dev/null 2>&1
-      register: is_docker_installed
+      ansible.builtin.command: docker --version
+      register: docker_installed
       ignore_errors: true
 
     - name: Install docker !
@@ -147,25 +152,26 @@
         sh get-docker.sh
         usermod -aG docker essic
         rm get-docker.sh
-      when: is_docker_installed.rc != 0
+      when: docker_installed.failed 
 
     - name: Check if az-cli exists!
-      ansible.builtin.shell: command -v az > /dev/null 2>&1
-      register: is_az_exist
+      ansible.builtin.command: az version 
+      register: az_cli_installed
       ignore_errors: true
-      changed_when: false
+
+    - name: az value
+      ansible.builtin.debug:
+        msg: Value -> {{ az_cli_installed }} 
 
     - name: Install az-cli
       become: true
       ansible.builtin.shell: |
-        curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-      args:
-        warn: false
-      when: is_az_exist.rc != 0
+        pip3 install azure-cli
+      when: az_cli_installed.failed
 
     - name: Check if rust is installed!
-      ansible.builtin.shell: command -v rustup > /dev/null 2>&1
-      register: is_rust_installed
+      ansible.builtin.command: rustup --version
+      register: rust_installed
       ignore_errors: true
 
     - name: Rust installation!
@@ -175,14 +181,12 @@
             curl https://sh.rustup.rs -sSf | sh -s -- -y
             ~/.cargo/bin/rustup toolchain install nightly
             ~/.cargo/bin/rustup default nightly
-          args:
-            warn: false
-      when: is_rust_installed.rc != 0
+      when: rust_installed.failed
 
-    - name: Check if OhMyZsh folder already exists!
-      ansible.builtin.stat:
-        path: ~/.oh-my-zsh
-      register: ohmyzsh
+    - name: Check if OhMyZsh is installed!
+      ansible.builtin.command: ls ~/.oh-my-zsh 
+      register: omz_installed
+      ignore_errors: true
 
     - name: OhMyZsh installation!
       block:
@@ -191,81 +195,72 @@
             url: https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh
             dest: ~/install_ohmyzsh.sh
             mode: +x
-
         - name: Install OhMyZsh!
-          changed_when: false
-          ansible.builtin.command: ~/install_ohmyzsh.sh --unattended
-
+          ansible.builtin.shell: |
+            cd ~
+            ./install_ohmyzsh.sh --unattended
         - name: Remove OhMyZsh install script
           ansible.builtin.file:
             path: ~/install_ohmyzsh.sh
             state: absent
-      when: not ohmyzsh.stat.exists
+      when: omz_installed.failed
 
     - name: Check if ghcup is present!
-      ansible.builtin.stat:
-        path: ~/.ghcup
-      register: ghcup
-
+      ansible.builtin.command: ghcup --version
+      ignore_errors: true
+      register: ghcup_installed
 
     - name: Haskell installation with GHCUP
       block:
-      - name: Install ghcup requirement
-        become: true
-        ansible.builtin.apt:
-          name:
-            - libffi-dev
-            - libgmp-dev
-            - libgmp10
-            - libncurses-dev
-            - libncurses5
-            - libtinfo5
-            - libgmp3-dev
-            - libtinfo-dev
-            - libghc-zlib-dev
-            - build-essential
-          state: present
-          update_cache: true
-
-      - name: Download ghcup install script
-        ansible.builtin.get_url:
-          url: https://get-ghcup.haskell.org
-          dest: ~/install_ghcup.sh
-          mode: +x
-
-      - name: Install ghcup
-        changed_when: false
-        ansible.builtin.shell: |
-          export BOOTSTRAP_HASKELL_NONINTERACTIVE=0
-          ~/install_ghcup.sh
-
-      - name: Install ghc, cabal, stack and hls
-        changed_when: false
-        ansible.builtin.shell: |
-          ~/.ghcup/bin/ghcup install ghc
-          ~/.ghcup/bin/ghcup set ghc
-          ~/.ghcup/bin/ghcup install cabal
-          ~/.ghcup/bin/ghcup set cabal
-          ~/.ghcup/bin/ghcup install hls
-          ~/.ghcup/bin/ghcup set hls
-          ~/.ghcup/bin/ghcup install stack
-          ~/.ghcup/bin/ghcup set stack
-
-      - name: Remove ghcup install script
-        ansible.builtin.file:
-          path: ~/install_ghcup.sh
-          state: absent
-
-      - name: Download summoner 2.0.1.1
-        ansible.builtin.get_url:
-          url: https://github.com/kowainik/summoner/releases/download/v2.0.1.1/summon-cli-linux
-          dest: ~/.local/summon-cli-linux
-          mode: +x
-
-      - name: Install summoner
-        ansible.builtin.command: mv ~/.local/summon-cli-linux ~/.local/bin/summon
-
-      when: not ghcup.stat.exists
+        - name: Install ghcup requirement
+          become: true
+          ansible.builtin.apt:
+            name:
+              - libffi-dev
+              - libgmp-dev
+              - libgmp10
+              - libncurses-dev
+              - libncurses5
+              - libtinfo5
+              - libgmp3-dev
+              - libtinfo-dev
+              - libghc-zlib-dev
+              - build-essential
+            state: present
+            update_cache: true
+        - name: Download ghcup install script
+          ansible.builtin.get_url:
+            url: https://get-ghcup.haskell.org
+            dest: ~/install_ghcup.sh
+            mode: +x
+        - name: Install ghcup
+          changed_when: false
+          ansible.builtin.shell: |
+            export BOOTSTRAP_HASKELL_NONINTERACTIVE=0
+            ~/install_ghcup.sh
+        - name: Install ghc, cabal, stack and hls
+          changed_when: false
+          ansible.builtin.shell: |
+            ~/.ghcup/bin/ghcup install ghc
+            ~/.ghcup/bin/ghcup set ghc
+            ~/.ghcup/bin/ghcup install cabal
+            ~/.ghcup/bin/ghcup set cabal
+            ~/.ghcup/bin/ghcup install hls
+            ~/.ghcup/bin/ghcup set hls
+            ~/.ghcup/bin/ghcup install stack
+            ~/.ghcup/bin/ghcup set stack
+        - name: Remove ghcup install script
+          ansible.builtin.file:
+            path: ~/install_ghcup.sh
+            state: absent
+        - name: Download summoner 2.0.1.1
+          ansible.builtin.get_url:
+            url: https://github.com/kowainik/summoner/releases/download/v2.0.1.1/summon-cli-linux
+            dest: ~/.local/summon-cli-linux
+            mode: +x
+        - name: Install summoner
+          ansible.builtin.command: mv ~/.local/summon-cli-linux ~/.local/bin/summon
+      when: ghcup_installed.failed
 
     - name: Check if nvm folder already exists!
       ansible.builtin.stat:
@@ -299,27 +294,27 @@
         name: snapd
         state: present
 
-    - name: Install postman
+    - name: Install pwsh, vscode, nvim, intellij, rider
       become: true
       community.general.snap:
         name:
-          - postman
-        classic: false
-        state: present
-
-    - name: Install emacs, pwsh, vscode, nvim, intellij, rider
-      become: true
-      community.general.snap:
-        name:
-          - emacs
           - nvim
           - powershell
           - code
           - intellij-idea-ultimate
-            #- rider
+#         - rider
         classic: true
         state: present
- 
+      ignore_errors: true
+
+    - name: Install emacs
+      become: true
+      community.general.snap:
+        name:
+          - emacs
+        classic: true
+        state: present
+
     - name: Check if Spacemacs config file exists!
       ansible.builtin.stat:
         path: ~/.spacemacs
@@ -328,21 +323,19 @@
     - name: Check if .emacs.d folder is present
       ansible.builtin.stat:
         path: ~/.emacs.d
-        register: emacsd
+      register: emacsd
 
     - name: Install Spacemacs
       block:
         - name: Backup .emacs.d folder
           ansible.builtin.command: mv ~/.emacs.d ~/.emacs.d.bak
-          when: emacsd.stat.exists
-
+          when: emacsd.stat.exists and emacsd.stat.isdir
         - name: Copy spacemacs config
           ansible.builtin.copy:
             src: ./spacemacs
             dest: ~/.spacemacs
             remote_src: false
             mode: u=rw,g=r,o=r
-
         - name: Clone spacemacs
           ansible.builtin.git:
             repo: https://github.com/syl20bnr/spacemacs
@@ -454,5 +447,5 @@
     - name: Change shell to zsh
       become: true
       ansible.builtin.user:
-        name: essic
+        name: '{{ user_login }}'
         shell: /bin/zsh
