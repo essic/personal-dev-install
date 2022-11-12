@@ -59,8 +59,17 @@
           - shellcheck
           - unzip
           - apt-file
+          - ruby
+          - libncurses5-dev
+          - libncursesw5-dev
+          - ruby
         state: latest
         update_cache: true
+
+    - name: Install mdless
+      become: true
+      ansible.builtin.shell: |
+        gem install mdless
 
     - name: Set git user email
       community.general.git_config:
