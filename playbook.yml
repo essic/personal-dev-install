@@ -121,7 +121,7 @@
 
     - name: Set up git alias cian
       community.general.git_config:
-        name: alias.cia
+        name: alias.cian
         scope: global
         value: commit --amend --no-edit
 
