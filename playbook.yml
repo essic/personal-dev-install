@@ -63,6 +63,9 @@
           - libncurses5-dev
           - libncursesw5-dev
           - ruby
+          - luajit
+          - ripgrep
+          - jq
         state: latest
         update_cache: true
 
