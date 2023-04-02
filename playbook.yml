@@ -275,8 +275,8 @@
         - name: Install hspec-discover, ghcid
           changed_when: false
           ansible.builtin.shell: |
-            cabal install ghcid
-            cabal install hspec-discover
+            ~/.ghcup/bin/cabal install ghcid
+            ~/.ghcup/bin/cabal install hspec-discover
       when: ghcup_installed.failed
 
     - name: Check if nvm folder already exists!
