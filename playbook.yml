@@ -272,6 +272,11 @@
             mode: +x
         - name: Install summoner
           ansible.builtin.command: mv ~/.local/summon-cli-linux ~/.local/bin/summon
+        - name: Install hspec-discover, ghcid
+          changed_when: false
+          ansible.builtin.shell: |
+            cabal install ghcid
+            cabal install hspec-discover
       when: ghcup_installed.failed
 
     - name: Check if nvm folder already exists!
