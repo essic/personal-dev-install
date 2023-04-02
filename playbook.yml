@@ -291,8 +291,6 @@
         npm install -g vmd
         npm install -g bash-language-server
         npm install -g yarn
-      args:
-        warn: false
       when: not nvm.stat.exists
 
     - name: Remove dependencies that are no longer required
@@ -311,9 +309,9 @@
       community.general.snap:
         name:
           - nvim
-          - powershell
-          - code
-          - intellij-idea-ultimate
+#          - powershell
+#          - code
+#          - intellij-idea-ultimate
 #         - rider
         classic: true
         state: present
