@@ -20,3 +20,11 @@ case ":${PATH}:" in
         export PATH="$HOME/.ghcup/bin:$PATH"
         ;;
 esac
+
+case ":${PATH}:" in
+    *:"$HOME/.cabal":*)
+    ;;
+    *)
+        export PATH="$HOME/.cabal/bin:$PATH"
+        ;;
+esac
