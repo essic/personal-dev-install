@@ -178,7 +178,7 @@
     - name: Install az-cli
       become: true
       ansible.builtin.shell: |
-        pip3 install azure-cli
+        pip3 install --break-system-packages azure-cli
       when: az_cli_installed.failed
 
     - name: Check if rust is installed!
