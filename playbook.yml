@@ -69,11 +69,6 @@
         state: latest
         update_cache: true
 
-    - name: Install mdless
-      become: true
-      ansible.builtin.shell: |
-        gem install mdless
-
     - name: Set git user email
       community.general.git_config:
         name: user.email
@@ -178,7 +173,7 @@
     - name: Install az-cli
       become: true
       ansible.builtin.shell: |
-        pip3 install --break-system-packages azure-cli
+        pip3 install azure-cli
       when: az_cli_installed.failed
 
     - name: Check if rust is installed!
@@ -275,8 +270,8 @@
         - name: Install hspec-discover, ghcid
           changed_when: false
           ansible.builtin.shell: |
-            ~/.ghcup/bin/cabal install ghcid
-            ~/.ghcup/bin/cabal install hspec-discover
+            ~/.ghcup/bin/cabal install --overwrite-policy=always ghcid
+            ~/.ghcup/bin/cabal install --overwrite-policy=always hspec-discover
       when: ghcup_installed.failed
 
     - name: Check if nvm folder already exists!
